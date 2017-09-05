@@ -1,20 +1,20 @@
-class Style(object):
+class StyleOption(object):
 	def __init__(self, name, options):
 		self.name = name
 		self.options = options
 
 # The top-level styles that clang-format supports.
-BASE_STYLES = [
-    'LLVM', 
-    'Google', 
-    'Chromium', 
-    'Mozilla', 
+BASE_STYLE_TYPES = [
+    'LLVM',
+    'Google',
+    'Chromium',
+    'Mozilla',
     'WebKit',
 ]
 
 # Keys that we explicitly ignore, either because they don't really apply to what
 # we're doing or they are very obscure.
-SKIP_STYLE_KEYS = [
+SKIP_STYLE_OPTIONS = [
     'Language',
     'CommentPragmas',
     'DisableFormat',
@@ -31,12 +31,12 @@ SKIP_STYLE_KEYS = [
 # The values are arrays of the options for each setting. Each "option" is a dictionary of key-value pairs
 # where the key usually repeats the style's top-level name. This is so that some styles (like the UseTab ones)
 # can be coupled and handled together.
-STYLINGS = {}
+STYLE_OPTIONS = {}
 
 # Set up the stylings that are just on or off.
-STYLINGS.update({
-    key: Style(key, [
-    	{key:True}, 
+STYLE_OPTIONS.update({
+    key: StyleOption(key, [
+    	{key:True},
     	{key:False},
     ])
     for key in [
@@ -81,8 +81,8 @@ STYLINGS.update({
 })
 
 # Set up the stylings that have specific options.
-STYLINGS.update({
-    key: Style(key, [
+STYLE_OPTIONS.update({
+    key: StyleOption(key, [
     	{key:option} for option in options
     ])
     for key,options in {
@@ -118,7 +118,7 @@ STYLINGS.update({
 })
 
 # The UseTab & TabWidth are coupled.
-STYLINGS['UseTab'] = Style('UseTab', [
+STYLE_OPTIONS['UseTab'] = StyleOption('UseTab', [
     {'UseTab': 'Never', 'TabWidth': 8},
     {'UseTab': 'ForIndentation', 'TabWidth': 4},
     {'UseTab': 'ForIndentation', 'TabWidth': 8},
