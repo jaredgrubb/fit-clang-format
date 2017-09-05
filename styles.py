@@ -3,6 +3,19 @@ class StyleOption(object):
 		self.name = name
 		self.options = options
 
+class Style(object):
+    def __init__(self, base=None, style=None):
+        if style is None:
+            if base is not None:
+                style = {'BasedOnStyle': base}
+            elif style is None:
+                style = {}
+        elif base is None:
+            base = style['BasedOnStyle']
+
+        self.base = base
+        self.style = style
+
 # The top-level styles that clang-format supports.
 BASE_STYLE_TYPES = [
     'LLVM',
