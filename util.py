@@ -58,6 +58,16 @@ def flatten(values):
     else:
         return [values]
 
+# A class that makes a sentinel type with a good repr.
+# This is really useful with defaults in argparse, where you want the value to have something
+# nice to show to user, but still be a sentinel we can test against.
+class SentinelWithHelpText:
+    def __init__(self, text):
+        self.text = text
+    def __repr__(self):
+        return self.text
+
+
 # A 'box' to allow us to hash things that arent hashable (like dict or list)
 class BoxedThing(object):
     def __init__(self, thing):

@@ -2,18 +2,9 @@ import os
 import subprocess
 import util
 
-class GitRepoDiffer(object):
+class GitRepoDifferBase(object):
     def run_git_diff(self, project, options):
-        options = options or []
-        diff = project.git_repo.run(['diff', '--shortstat'] + options)
-        files, insertions, deletions = [int(x.split()[0]) for x in diff.split(',')]
-
-        # To rank a "better" git-diff, we order by:
-        #  1. the fewest lines changed (either added or deleted)
-        #  2. then, if that's equal, we want to touch fewer files
-        #  3. then, if that's still equal, we'd prefer to delete than insert.
-
-        return (max(insertions, deletions), files, abs(insertions-deletions))
+        raise NotImplemented
 
     # Returns a "score" of the diff, which is an arbitrary object such that, given two of them,
     # the "smaller" diff is the one that is less-than the other.
@@ -24,6 +15,83 @@ class GitRepoDiffer(object):
             options.extend(['--ignore-blank-lines', '--ignore-space-at-eol'])
 
         return self.run_git_diff(project, options)
+
+class GitRepoDifferRankLines(GitRepoDifferBase):
+    def run_git_diff(self, project, options):
+        options = options or []
+        diff = project.git_repo.run(['diff', '--shortstat'] + options)
+
+        # Get the numbers from something like "3 files changed, 148 insertions(+), 15 deletions(-)"
+        files, insertions, deletions = [int(x.split()[0]) for x in diff.split(',')]
+
+        # To rank a "better" git-diff, we order by:
+        #  1. the fewest lines changed (either added or deleted)
+        #  2. then, if that's equal, we want to touch fewer files
+        #  3. then, if that's still equal, we'd prefer to delete than insert.
+
+        return (max(insertions, deletions), files, abs(insertions-deletions))
+
+class GitRepoDifferRankFiles(GitRepoDifferRankLines):
+    def run_git_diff(self, project, options):
+        result = GitRepoDifferRankLines.run_git_diff(self, project, options)
+        return result[1], result[0], result[2]
+
+class GitRepoDifferByFile(GitRepoDifferBase):
+    def run_git_diff(self, project, options):
+        options = options or []
+
+        diff = project.git_repo.run(['diff', '--numstat'] + options)
+
+        # turn into list of (insertions, deletions, filename)
+        stats = [line.split('\t') for line in diff.split('\n') if line]
+
+        files = len(stats)
+
+        op = lambda s: int(s)
+
+        maxid = sum(max(op(s[0]),op(s[1])) for s in stats)
+        delta = sum(abs(op(s[0])-op(s[1])) for s in stats)
+
+
+        # To rank a "better" git-diff, we order by:
+        #  1. the fewest lines changed (either added or deleted)
+        #  2. then, if that's equal, we want to touch fewer files
+        #  3. then, if that's still equal, we'd prefer to delete than insert.
+
+        return (maxid, files, delta)
+
+class GitRepoDifferByFileLog(GitRepoDifferBase):
+    def run_git_diff(self, project, options):
+        options = options or []
+
+        diff = project.git_repo.run(['diff', '--numstat'] + options)
+
+        # turn into list of (insertions, deletions, filename)
+        stats = [line.split('\t') for line in diff.split('\n') if line]
+
+        files = len(stats)
+
+        import math
+        op = lambda s: math.log(1+int(s))
+
+        maxid = sum(max(op(s[0]),op(s[1])) for s in stats)
+        delta = sum(abs(op(s[0])-op(s[1])) for s in stats)
+
+
+        # To rank a "better" git-diff, we order by:
+        #  1. the fewest lines changed (either added or deleted)
+        #  2. then, if that's equal, we want to touch fewer files
+        #  3. then, if that's still equal, we'd prefer to delete than insert.
+
+        return (maxid, files, delta)
+
+diff_options = {
+    'lines': GitRepoDifferRankLines,
+    'files': GitRepoDifferRankFiles,
+    'hybrid': GitRepoDifferByFile,
+    'hybrid-log': GitRepoDifferByFileLog,
+}
+diff_default = 'lines'
 
 class GitRepo(object):
     def __init__(self, path, context):
@@ -68,7 +136,7 @@ class GitRepo(object):
 
 # A model of a project managed by a git repo.
 class GitProject(object):
-    def __init__(self, path, context, differ=GitRepoDiffer()):
+    def __init__(self, path, context):
         self.path = path
         self.context = context
         self.git_repo = GitRepo(path=path, context=context)
@@ -86,9 +154,14 @@ class GitProject(object):
 
         return self.create_styled_repo_context(style)
 
+    def get_files(self, extensions):
+        return util.get_files_with_extensions(self.path, extensions)
+
     def check(self):
         if not os.path.exists(os.path.join(self.path, '.git')):
             raise ValueError("The directory %r does not seem to be a git repo (no .git subdir)" % self.path)
+        if self.git_repo.is_dirty():
+            raise ValueError("git repo is not clean")
 
     # Helpers
 
