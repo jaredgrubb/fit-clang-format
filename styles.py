@@ -1,3 +1,6 @@
+import copy
+import yaml
+
 class StyleOption(object):
 	def __init__(self, name, options):
 		self.name = name
@@ -14,7 +17,22 @@ class Style(object):
             base = style['BasedOnStyle']
 
         self.base = base
-        self.style = style
+        self.style_dict = style
+
+    def __repr__(self):
+        return 'Style(base=%r, style=%r)' % (self.base, self.style_dict)
+
+    def dump(self, output_stream):
+        yaml.safe_dump(self.style_dict, stream=output_stream, default_flow_style=False)
+
+    def style_with_overrides(self, overrides):
+        # Find the base config to override.
+        new_base = overrides.get('BasedOnStyle', self.base)
+        new_style_dict = copy.deepcopy(self.style_dict)
+        new_style_dict.update(overrides)
+
+        return Style(base=new_base, style=new_style_dict)
+
 
 # The top-level styles that clang-format supports.
 BASE_STYLE_TYPES = [
@@ -138,4 +156,3 @@ STYLE_OPTIONS['UseTab'] = StyleOption('UseTab', [
     {'UseTab': 'Always', 'TabWidth': 4},
     {'UseTab': 'Always', 'TabWidth': 8},
 ])
-
