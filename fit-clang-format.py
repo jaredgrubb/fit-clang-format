@@ -1,4 +1,5 @@
-#! /usr/bin/python
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
 
 from __future__ import print_function
 
@@ -31,7 +32,18 @@ ANSI = {
 
     'ARROW':   ansi.COLORS['blue'],
     'HEADER':  ansi.COLORS['white'],
+
+    'RANK_BASE':  '',
+    'RANK_BETTER':ansi.COLORS['green'],
+    'RANK_SAME':  '',
+    'RANK_WORSE': ansi.COLORS['red'],
 }
+
+RANK_BASE   = lambda: ansi.wrap(ANSI['RANK_BASE'],   '∅')
+RANK_BETTER = lambda: ansi.wrap(ANSI['RANK_BETTER'], '+')
+RANK_SAME   = lambda: ansi.wrap(ANSI['RANK_SAME'],   '-')
+RANK_WORSE  = lambda: ansi.wrap(ANSI['RANK_WORSE'],  '-')
+
 
 class CandidateTracker(object):
     def __init__(self, base_style=None):
@@ -83,13 +95,17 @@ class CandidateTracker(object):
             raise RuntimeError("Pushed a candidate, but we aren't searching")
 
         if self.candidate_score is not None:
-            if score >= self.candidate_score:
-                return False
+            if score > self.candidate_score:
+                return -1
 
         self.candidate_score = score
         self.candidate_label = label
         self.candidate_style = style
-        return True
+
+        if self.accepted_score:
+            if score >= self.accepted_score:
+                return 0
+        return 1
 
     def get_best_style(self):
         return self.accepted_style
@@ -103,16 +119,74 @@ class CandidateTracker(object):
         else:
             return "CandidateTracker(best_score=%r, best_style=%r)" % (self.accepted_score, self.accepted_style)
 
-def search(tracker, project, options, strictly_better=True):
+class StyleCanonicalizer(object):
+    def __init__(self):
+        self.cache = {}
+
+    def get_base_style(self, base):
+        style = self.cache.get(base)
+        if not style:
+            full_dict = yaml.load(
+                util.run([context['clang-format'], '-dump-config', '-style', yaml.dump({'BasedOnStyle':base})])
+            )
+            style = styles.Style(base=base, style=full_dict)
+            self.cache[base] = style
+        return style
+
+    def get_canonical_string(self, style):
+        base_style = self.get_base_style(style.base)
+
+        # Get the key-value pairs that are different.
+        ret = {'BasedOnStyle': style.base}
+        for key in base_style.style_dict.keys():
+            value = style.style_dict.get(key)
+            if value==base_style.style_dict.get(key):
+                continue
+            ret[key] = value
+
+        return yaml.dump(ret)
+
+
+class ScoreCache(object):
+    def __init__(self):
+        self.hasher = StyleCanonicalizer()
+        self.cache = {}
+
+    def get_hash_for_style(self, style):
+        return self.hasher.get_canonical_string(style=style)
+
+    def get_score(self, style):
+        h = self.get_hash_for_style(style)
+        return self.cache.get(h)
+
+    def register_score(self, style, score):
+        h = self.get_hash_for_style(style)
+        self.cache[h] = score
+
+
+def search(tracker, project, options, strictly_better=True, cache=ScoreCache()):
     tracker.start()
     for option in options:
         style = tracker.get_candidate_style(option)
 
-        with project.apply_temporary_style(style):
-            diff = differ.calculate_diff(project, ignore_spaces=True)
-            better = tracker.push_candidate(label=option, score=diff, style=style)
+        rank = RANK_SAME
 
-            print('  %s %r: %r %r' % ('!!' if better else '  ', diff, option, style))
+        score = cache.get_score(style)
+        if score is None:
+            with project.apply_temporary_style(style):
+                score = differ.calculate_diff(project, ignore_spaces=True)
+            cache.register_score(style=style, score=score)
+
+        better = tracker.push_candidate(label=option, score=score, style=style)
+
+        if better < 0:
+            better_label = RANK_WORSE()
+        elif better == 0:
+            better_label = RANK_SAME()
+        else:
+            better_label = RANK_BETTER()
+
+        print('  %s %r: %r %r' % (better_label, score, option, style))
 
     return tracker.finish(strictly_better=strictly_better)
 
