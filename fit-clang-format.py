@@ -90,13 +90,13 @@ class CandidateTracker(object):
         else:
             return "CandidateTracker(best_score=%r, best_style=%r)" % (self.accepted_score, self.accepted_style)
 
-def search(tracker, options, strictly_better=True):
+def search(tracker, project, options, strictly_better=True):
     tracker.start()
     for option in options:
         style = tracker.get_candidate_style(option)
 
-        with repo.apply_temporary_style(style):
-            diff = differ.calculate_diff(ignore_spaces=True)
+        with project.apply_temporary_style(style):
+            diff = differ.calculate_diff(project, ignore_spaces=True)
             better = tracker.push_candidate(label=option, score=diff, style=style)
 
             print('  %s %r: %r %r' % ('!!' if better else '  ', diff, option, style))
@@ -116,7 +116,7 @@ context = {
 #   TODO
 
 source = SRC_DIR
-repo = git.GitRepo(path=SRC_DIR, context=context)
+project = git.GitProject(path=SRC_DIR, context=context)
 differ = git.GitRepoDiffer()
 
 ## Sanity checks.
@@ -128,7 +128,7 @@ if not util.check([context['clang-format'], '-version']):
 if context['files_to_format'] is None:
     context['files_to_format'] = util.get_files_with_extensions('.', ['h','c','cc','cpp','m','mm'])
 
-repo.check()
+project.check()
 
 ## Go!
 
@@ -136,7 +136,7 @@ tracker = CandidateTracker()
 
 print("")
 print("=> Testing base styles to see which seems to fit best.")
-search(tracker, [
+search(tracker, project, [
     {'BasedOnStyle': base} for base in styles.BASE_STYLE_TYPES
 ], strictly_better=False)
 print(" :: best option so far: %r" % (tracker,))
@@ -144,19 +144,19 @@ print(" :: best option so far: %r" % (tracker,))
 
 print("")
 print("=> Testing for indent width")
-search(tracker, styles.STYLE_OPTIONS['IndentWidth'].options, strictly_better=False)
+search(tracker, project, styles.STYLE_OPTIONS['IndentWidth'].options, strictly_better=False)
 print(" :: best option so far: %r" % (tracker,))
 
 
 print("")
 print("=> Testing for tabs vs spaces")
-search(tracker, styles.STYLE_OPTIONS['UseTab'].options, strictly_better=False)
+search(tracker, project, styles.STYLE_OPTIONS['UseTab'].options, strictly_better=False)
 print(" :: best option so far: %r" % (tracker,))
 
 
 print("")
 print("=> Retesting the bases using indent and tabs")
-search(tracker, [
+search(tracker, project, [
     {'BasedOnStyle': base} for base in styles.BASE_STYLE_TYPES
 ])
 print(" :: best option so far: %r" % (tracker,))
@@ -167,7 +167,7 @@ print("=> Final stage: tweak each key")
 
 for index, key in enumerate(styles.STYLE_OPTIONS.keys()):
     print(" == Round %d of %d: %r" % (index, len(styles.STYLE_OPTIONS), key))
-    changed = search(tracker, options=styles.STYLE_OPTIONS[key].options)
+    changed = search(tracker, project, options=styles.STYLE_OPTIONS[key].options)
 
 
 print("")
@@ -182,10 +182,10 @@ style.dump(sys.stdout)
 print("============")
 print("")
 
-print("Applying style to the repo...")
-repo.apply_style(style)
+print("Applying style to the project..")
+project.apply_style(style)
 
 print("")
-print("The .clang-format file is now in your repo and the style has been applied but not committed.")
+print("The .clang-format file is now in your project and the style has been applied but not committed.")
 
 sys.exit(RC_SUCCESS)
