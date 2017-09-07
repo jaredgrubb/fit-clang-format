@@ -5,9 +5,11 @@ from __future__ import print_function
 
 # System stuff.
 import argparse
+import math
 import os
-import yaml
+import random
 import sys
+import yaml
 
 # Project-local stuff.
 import ansi
@@ -29,9 +31,13 @@ ANSI = {
     'E':       ansi.COLORS['red'],       # errors
     'W':       ansi.COLORS['yellow'],    # warnings
     'V':       ansi.COLORS['dk_gray'],   # verbose text
+    'SKIP':    ansi.COLORS['dk_gray'],   # verbose text
 
     'ARROW':   ansi.COLORS['blue'],
     'HEADER':  ansi.COLORS['white'],
+
+    'STYLE_KEY': ansi.COLORS['white'],
+    'STYLE_VALUE': ansi.COLORS['dk_yellow'],
 
     'RANK_BASE':  '',
     'RANK_BETTER':ansi.COLORS['green'],
@@ -186,7 +192,10 @@ def search(tracker, project, options, strictly_better=True, cache=ScoreCache()):
         else:
             better_label = RANK_BETTER()
 
-        print('  %s %r: %r %r' % (better_label, score, option, style))
+        if verbosity > VERBOSITY_MEDIUM:
+            print('  %s %r: %s %r' % (better_label, score, ansi.wrap(ANSI['STYLE_VALUE'], option), style))
+        else:
+            print('  %s %r: %s' % (better_label, score, ansi.wrap(ANSI['STYLE_VALUE'], option)))
 
     return tracker.finish(strictly_better=strictly_better)
 
@@ -197,7 +206,7 @@ context = {
     'clang-format': 'clang-format', # assume it's in the path
     'ansi': ANSI,
     'verbosity': 0,
-    'files_to_format': None,
+    'files_to_format': [],
 }
 
 verbosity = 0
@@ -213,15 +222,20 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--version', action='version', version='%(prog)s version ' + PROGRAM_VERSION)
 
 basic_args = parser.add_argument_group('Project Options')
-basic_args.add_argument('--git', type=str, metavar='PATH', default=CWD, help='the path to the git-repo to match')
-basic_args.add_argument('--include-extensions', type=str, metavar='EXTENSIONS', default='h,hpp,c,cc,cpp,m,mm', help='add all files with these extensions')
-basic_args.add_argument('--exclude-path', type=str, metavar='PATH', action='append', help='a path/file to exclude from the analysis; can be specified multiple times')
+basic_args.add_argument('--git', type=str, metavar='PATH', default=CWD, help='the path to the git-repo to match; paths are relative to this')
+basic_args.add_argument('--include-extensions', type=str, metavar='EXTENSIONS', default='h,hpp,c,cc,cpp,m,mm', help='add all files with these extensions, comma-delimited')
+basic_args.add_argument('-I', '--include-path', type=str, metavar='PATH', action='append', help='path/file to search for files; can be specified multiple times')
+basic_args.add_argument('-E', '--exclude-path', type=str, metavar='PATH', action='append', help='path/file to exclude from the analysis; can be specified multiple times. Exclusions apply after include filters.')
+basic_args.add_argument('--randomly-limit', type=int, metavar='NUM', help='randomly select NUM files; files will be selected according to relative frequence by extension (min 1)')
 basic_args.add_argument('--git-diff-score', choices=sorted(git.diff_options.keys()), default=git.diff_default, help='the scoring algorithm to use')
 
+basic_args = parser.add_argument_group('Style Options')
+basic_args.add_argument('--style-base', choices=sorted(styles.BASE_STYLE_TYPES), help='force a specific base style')
+basic_args.add_argument('--force-style', type=str, metavar='YAML', help='force a starting style (removes these keys from further consideration)')
+basic_args.add_argument('--skip-option', type=str, action='append', metavar='PATH', help='skip a style option key with this name; can be specified multiple times')
 
 basic_args = parser.add_argument_group('Environment options')
 basic_args.add_argument('--clang-format-path', type=str, metavar='PATH', help='the path to the clang-format tool')
-basic_args.add_argument('--style-base', choices=sorted(styles.BASE_STYLE_TYPES), help='force a specific base style')
 
 output_args = parser.add_argument_group('Output options')
 output_args.add_argument('--verbose', '-v', action='count')
@@ -272,27 +286,43 @@ if verbosity:
 
 # For now, we only support git repos.
 if args.git is CWD:
-    source_path = os.getcwd()
+    base_path = os.getcwd()
 else:
-    source_path = os.path.realpath(args.git)
-if not os.path.isdir(source_path):
-    print(ansi.wrap(ANSI['E'], "ERROR: The source path %r does not exist." % source_path))
+    base_path = os.path.realpath(args.git)
+if not os.path.isdir(base_path):
+    print(ansi.wrap(ANSI['E'], "ERROR: The path %r does not exist." % base_path))
     sys.exit(RC_FAIL)
 if verbosity:
-    print(ansi.wrap(ANSI['V'], "[V] Using source git repo at %r" % source_path))
+    print(ansi.wrap(ANSI['V'], "[V] Using git repo at %r" % base_path))
 
-project = git.GitProject(path=source_path, context=context)
+project = git.GitProject(path=base_path, context=context)
 
 
 # Build the list of files to test.
-if context['files_to_format'] is None:
-    context['files_to_format'] = project.get_files(extensions=args.include_extensions.split(','))
-if not context['files_to_format']:
-    print(ansi.wrap(ANSI['E'], "ERROR: No files found to format."))
-    sys.exit(RC_FAIL)
-
+context['files_to_format'] = project.get_files(extensions=args.include_extensions.split(','))
 if verbosity:
     print(ansi.wrap(ANSI['V'], "[V] Matched %d files from --include-extensions matches." % len(context['files_to_format'])))
+
+if args.include_path is None:
+    pass
+elif '.' in args.include_path:
+    # Special case of '.' means "match all"
+    if verbosity:
+        print(ansi.wrap(ANSI['V'], "[V] Skipping --include-path filtering because '.' is in the list (matches everything)."))
+else:
+    def matcher(f):
+        result = any(f.startswith(p) for p in args.include_path)
+        if not result and verbosity>VERBOSITY_MEDIUM:
+            print(ansi.wrap(ANSI['V'], "[VV] The --include-path argument rejects file %r" % f))
+        return result
+
+    context['files_to_format'] = [
+        f for f in context['files_to_format']
+        if matcher(f)
+    ]
+
+    if verbosity:
+        print(ansi.wrap(ANSI['V'], "[V] Matched %d files after applying %d --include-path paths." % (len(context['files_to_format']), len(args.include_path))))
 
 if args.exclude_path:
     def matcher(f):
@@ -306,7 +336,48 @@ if args.exclude_path:
         if not matcher(f)
     ]
 
-    print(ansi.wrap(ANSI['V'], "[V] Matched %d files after applying --exclude-path matches." % len(context['files_to_format'])))
+    if verbosity:
+        print(ansi.wrap(ANSI['V'], "[V] Matched %d files after applying %d --exclude-path paths." % (len(context['files_to_format']), len(args.exclude_path))))
+
+if args.randomly_limit is None:
+    pass
+elif args.randomly_limit <= 0:
+    print(ansi.wrap(ANSI['E'], "ERROR: --limit-random should be a positive number."))
+    sys.exit(RC_FAIL)
+elif args.randomly_limit >= len(context['files_to_format']):
+    if verbosity:
+        print(ansi.wrap(ANSI['V'], "[V] Skipping random selection because limit of %d is larger than list of files." % (args.randomly_limit)))
+else:
+    files_by_extension = {}
+    for f in context['files_to_format']:
+        _, ext = os.path.splitext(f)
+        files_by_extension.setdefault(ext, []).append(f)
+
+    context['files_to_format'] = []
+    for files in files_by_extension.itervalues():
+        random.shuffle(files)
+
+        # Always keep one of each file for sure.
+        context['files_to_format'].append(files.pop())
+
+    # Then take a fraction of each list, weighted by relative frequency
+    full_count = sum(len(files) for files in files_by_extension.itervalues())
+    keep_fraction = float(args.randomly_limit - len(files_by_extension)) / full_count
+    for ext, files in files_by_extension.iteritems():
+        i = int(round(keep_fraction * len(files)))
+        if verbosity:
+            # XX: the plus-one here is to account for the one file we selected in the first for loop above.
+            print(ansi.wrap(ANSI['V'], "[V] Random Filter: keeping %d of %d files for extension %r." % (1+i, 1+len(files), ext)))
+        context['files_to_format'].extend(files[:i])
+
+    context['files_to_format'].sort()
+
+
+if not context['files_to_format']:
+    print(ansi.wrap(ANSI['E'], "ERROR: No files found to format."))
+    sys.exit(RC_FAIL)
+if verbosity:
+    print(ansi.wrap(ANSI['V'], "[V] Final file count after all filters is %d files" % (len(context['files_to_format']))))
 
 
 # Pick the diff strategy.
@@ -315,23 +386,40 @@ if verbosity:
     print(ansi.wrap(ANSI['V'], "[V] Using diff strategy %r." % args.git_diff_score))
 
 
+# Check for starting styles
+init_style = {}
+if args.force_style:
+    init_style = yaml.load(args.force_style)
+    if verbosity:
+        print(ansi.wrap(ANSI['V'], "[V] Applying a force-style (%d keys)." % len(init_style)))
+
+if args.style_base:
+    init_style['BasedOnStyle'] = args.style_base
+    if verbosity:
+        print(ansi.wrap(ANSI['V'], "[V] Forcing the style to be based on %r." % args.style_base))
+
+skip_keys = set(init_style.keys())
+if args.skip_option:
+    skip_keys.update(args.skip_option)
+if verbosity and skip_keys:
+    print(ansi.wrap(ANSI['V'], "[V] Will skip consideration of a total of %d style option keys." % len(skip_keys)))
+
+
 ## Go!
 
 # Sanity-check that we can proceed.
 project.check()
 
-if args.style_base:
-    skip_keys = ['BasedOnStyle']
-    base_style = styles.Style(style={'BasedOnStyle': args.style_base})
+if init_style:
+    base_style = styles.Style(style=init_style)
     tracker = CandidateTracker(base_style)
 else:
-    skip_keys = []
     tracker = CandidateTracker()
 
 
 if 'BasedOnStyle' in skip_keys:
     if verbosity:
-        print(ansi.wrap(ANSI['V'], "[V] Skipping tests for base style due to --style-base argument."))
+        print(ansi.wrap(ANSI['V'], "[V] Skipping tests for BasedOnStyle."))
 else:
     print("")
     print(ansi.wrap(ANSI['ARROW'], "=>") + ansi.wrap(ANSI['HEADER'], " Testing base styles to see which seems to fit best."))
@@ -340,17 +428,24 @@ else:
     ], strictly_better=False)
     print(" :: best option so far: %r" % (tracker,))
 
+if 'IndentWidth' in skip_keys:
+    if verbosity:
+        print(ansi.wrap(ANSI['V'], "[V] Skipping tests for IndentWidth."))
+else:
+    print("")
+    print(ansi.wrap(ANSI['ARROW'], "=>") + ansi.wrap(ANSI['HEADER'], " Testing for indent width"))
+    search(tracker, project, styles.STYLE_OPTIONS['IndentWidth'].options, strictly_better=False)
+    print(" :: best option so far: %r" % (tracker,))
 
-print("")
-print(ansi.wrap(ANSI['ARROW'], "=>") + ansi.wrap(ANSI['HEADER'], " Testing for indent width"))
-search(tracker, project, styles.STYLE_OPTIONS['IndentWidth'].options, strictly_better=False)
-print(" :: best option so far: %r" % (tracker,))
 
-
-print("")
-print(ansi.wrap(ANSI['ARROW'], "=>") + ansi.wrap(ANSI['HEADER'], " Testing for tabs vs spaces"))
-search(tracker, project, styles.STYLE_OPTIONS['UseTab'].options, strictly_better=False)
-print(" :: best option so far: %r" % (tracker,))
+if 'UseTab' in skip_keys:
+    if verbosity:
+        print(ansi.wrap(ANSI['V'], "[V] Skipping tests for UseTab."))
+else:
+    print("")
+    print(ansi.wrap(ANSI['ARROW'], "=>") + ansi.wrap(ANSI['HEADER'], " Testing for tabs vs spaces"))
+    search(tracker, project, styles.STYLE_OPTIONS['UseTab'].options, strictly_better=False)
+    print(" :: best option so far: %r" % (tracker,))
 
 
 if 'BasedOnStyle' in skip_keys:
@@ -370,6 +465,10 @@ print(ansi.wrap(ANSI['ARROW'], "=>") + ansi.wrap(ANSI['HEADER'], " Final stage: 
 
 for index, key in enumerate(styles.STYLE_OPTIONS.keys()):
     print(ansi.wrap(ANSI['HEADER'], " == Round %d of %d: %r" % (index, len(styles.STYLE_OPTIONS), key)))
+    if key in skip_keys:
+        print(ansi.wrap(ANSI['SKIP'], "   (skipped)"))
+        continue
+
     changed = search(tracker, project, options=styles.STYLE_OPTIONS[key].options)
 
 
