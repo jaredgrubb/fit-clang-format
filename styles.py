@@ -117,7 +117,7 @@ STYLE_OPTIONS.update({
     	{key:option} for option in options
     ])
     for key,options in {
-        'AccessModifierOffset': [-4, -2, -1],
+        'AccessModifierOffset': [-4, -2, -1, 0, 1, 2, 4],
         'AlignAfterOpenBracket': ['Align', 'DontAlign', 'AlwaysBreak'],
         'AllowShortFunctionsOnASingleLine': ['All', 'Inline', 'None', 'Empty'],
         'AlwaysBreakAfterDefinitionReturnType': ['TopLevel', 'None'],
@@ -126,14 +126,14 @@ STYLE_OPTIONS.update({
         'BreakBeforeBinaryOperators': ['None', 'NonAssignment', 'All'],
         'BreakBeforeBraces': ['GNU', 'Allman', 'Mozilla', 'Attach', 'Stroustrup', 'Linux', 'WebKit'],
         'ColumnLimit': [0, 80, 90, 100, 110, 120],
-        'ConstructorInitializerIndentWidth': [2, 4],
-        'ContinuationIndentWidth': [2, 4],
+        'ConstructorInitializerIndentWidth': [0, 2, 4],
+        'ContinuationIndentWidth': [0, 2, 4],
         'IncludeCategories': [[{'Regex': '^"(llvm|llvm-c|clang|clang-c)/', 'Priority': 2}, {'Regex': '^(<|"(gtest|isl|json)/)', 'Priority': 3}, {'Regex': '.*', 'Priority': 1}], [{'Regex': '^<.*\\.h>', 'Priority': 1}, {'Regex': '^<.*', 'Priority': 2}, {'Regex': '.*', 'Priority': 3}]],
         'IncludeIsMainRegex': ['$', '([-_](test|unittest))?$'],
         'IndentWidth': [2, 3, 4, 8],
         "MaxEmptyLinesToKeep": [0, 1, 2, 3, 4],
         'NamespaceIndentation': ['All', 'None', 'Inner'],
-        'ObjCBlockIndentWidth': [2, 4],
+        'ObjCBlockIndentWidth': [0, 2, 4],
         'PenaltyBreakBeforeFirstCallParameter': [1, 19],
         'PenaltyBreakComment': [300, 150],
         'PenaltyBreakFirstLessLess': [120, 60],

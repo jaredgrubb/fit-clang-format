@@ -42,7 +42,7 @@ class GitRepoDifferRankFiles(GitRepoDifferRankLines):
 
 class GitRepoDifferByFile(GitRepoDifferBase):
     def __init__(self):
-        super(self.__class__, self).__init__()
+        super(GitRepoDifferByFile, self).__init__()
         self.scalar = linear_scalar
 
     def run_git_diff(self, project, options):
@@ -64,15 +64,15 @@ class GitRepoDifferByFile(GitRepoDifferBase):
 
         return (maxid, files, delta)
 
-class GitRepoDifferByFileLog(GitRepoDifferBase):
+class GitRepoDifferByFileLog(GitRepoDifferByFile):
     def __init__(self):
-        super(self.__class__, self).__init__()
+        super(GitRepoDifferByFileLog, self).__init__()
         self.scalar = log_scalar
 
 
 class GitRepoDifferWords(GitRepoDifferBase):
     def __init__(self):
-        super(self.__class__, self).__init__()
+        super(GitRepoDifferWords, self).__init__()
         self.scalar = linear_scalar
 
     def run_git_diff(self, project, options):
@@ -98,9 +98,9 @@ class GitRepoDifferWords(GitRepoDifferBase):
 
         return (maxid, files, delta)
 
-class GitRepoDifferWordsLog(GitRepoDifferBase):
+class GitRepoDifferWordsLog(GitRepoDifferWords):
     def __init__(self):
-        super(self.__class__, self).__init__()
+        super(GitRepoDifferWordsLog, self).__init__()
         self.scalar = log_scalar
 
 diff_options = {
@@ -139,7 +139,10 @@ class GitRepo(object):
     # Canned helpers.
 
     def is_dirty(self):
-        return not self.check('diff-index --quiet --cached HEAD'.split())
+        return (
+            not self.check('diff-index --quiet --cached HEAD'.split())  # staged changes
+         or not self.check('diff-files --quiet'.split())                # unstaged changes
+        )
 
     def reset(self):
         return self.check('reset --hard'.split())
@@ -181,7 +184,7 @@ class GitProject(object):
         if not os.path.exists(os.path.join(self.path, '.git')):
             raise ValueError("The directory %r does not seem to be a git repo (no .git subdir)" % self.path)
         if self.git_repo.is_dirty():
-            raise ValueError("git repo is not clean")
+            raise ValueError("git repo is not clean; please make sure you have checked in your changes, or create a temporary copy to play in.")
 
     # Helpers
 
