@@ -1,6 +1,10 @@
+import math
 import os
 import subprocess
 import util
+
+linear_scalar = lambda x: int(x)
+log_scalar = lambda x: math.log(1+int(x))
 
 class GitRepoDifferBase(object):
     def run_git_diff(self, project, options):
@@ -37,6 +41,10 @@ class GitRepoDifferRankFiles(GitRepoDifferRankLines):
         return result[1], result[0], result[2]
 
 class GitRepoDifferByFile(GitRepoDifferBase):
+    def __init__(self):
+        super(self.__class__, self).__init__()
+        self.scalar = linear_scalar
+
     def run_git_diff(self, project, options):
         options = options or []
 
@@ -46,12 +54,8 @@ class GitRepoDifferByFile(GitRepoDifferBase):
         stats = [line.split('\t') for line in diff.split('\n') if line]
 
         files = len(stats)
-
-        op = lambda s: int(s)
-
-        maxid = sum(max(op(s[0]),op(s[1])) for s in stats)
-        delta = sum(abs(op(s[0])-op(s[1])) for s in stats)
-
+        maxid = sum(max(self.scalar(s[0]),self.scalar(s[1])) for s in stats)
+        delta = sum(abs(self.scalar(s[0])-self.scalar(s[1])) for s in stats)
 
         # To rank a "better" git-diff, we order by:
         #  1. the fewest lines changed (either added or deleted)
@@ -61,37 +65,53 @@ class GitRepoDifferByFile(GitRepoDifferBase):
         return (maxid, files, delta)
 
 class GitRepoDifferByFileLog(GitRepoDifferBase):
+    def __init__(self):
+        super(self.__class__, self).__init__()
+        self.scalar = log_scalar
+
+
+class GitRepoDifferWords(GitRepoDifferBase):
+    def __init__(self):
+        super(self.__class__, self).__init__()
+        self.scalar = linear_scalar
+
     def run_git_diff(self, project, options):
         options = options or []
+        diff = project.git_repo.run(['diff', '--word-diff=porcelain', '-U0', '--word-diff-regex=.'] + options)
 
-        diff = project.git_repo.run(['diff', '--numstat'] + options)
+        delta = {}
+        cur_file = None
+        for line in diff.splitlines():
+            if line[0]=='+':
+                delta[cur_file]['+'] += self.scalar(len(line))
+            elif line[0]=='-':
+                delta[cur_file]['-'] += self.scalar(len(line))
+            elif line.startswith('diff'):
+                cur_file = line
+                delta[cur_file] = {'+': 0, '-': 0}
 
-        # turn into list of (insertions, deletions, filename)
-        stats = [line.split('\t') for line in diff.split('\n') if line]
+        head = list(delta.itervalues())[0]
 
-        files = len(stats)
-
-        import math
-        op = lambda s: math.log(1+int(s))
-
-        maxid = sum(max(op(s[0]),op(s[1])) for s in stats)
-        delta = sum(abs(op(s[0])-op(s[1])) for s in stats)
-
-
-        # To rank a "better" git-diff, we order by:
-        #  1. the fewest lines changed (either added or deleted)
-        #  2. then, if that's equal, we want to touch fewer files
-        #  3. then, if that's still equal, we'd prefer to delete than insert.
+        files = len(delta)
+        maxid = sum(max(self.scalar(s['+']),self.scalar(s['-'])) for s in delta.itervalues())
+        delta = sum(abs(self.scalar(s['+'])-self.scalar(s['-'])) for s in delta.itervalues())
 
         return (maxid, files, delta)
 
+class GitRepoDifferWordsLog(GitRepoDifferBase):
+    def __init__(self):
+        super(self.__class__, self).__init__()
+        self.scalar = log_scalar
+
 diff_options = {
+    'words': GitRepoDifferWords,
+    'words-log': GitRepoDifferWordsLog,
     'lines': GitRepoDifferRankLines,
     'files': GitRepoDifferRankFiles,
     'hybrid': GitRepoDifferByFile,
     'hybrid-log': GitRepoDifferByFileLog,
 }
-diff_default = 'lines'
+diff_default = 'words-log'
 
 class GitRepo(object):
     def __init__(self, path, context):

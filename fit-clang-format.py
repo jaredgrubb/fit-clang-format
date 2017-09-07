@@ -50,6 +50,12 @@ RANK_BETTER = lambda: ansi.wrap(ANSI['RANK_BETTER'], '+')
 RANK_SAME   = lambda: ansi.wrap(ANSI['RANK_SAME'],   '-')
 RANK_WORSE  = lambda: ansi.wrap(ANSI['RANK_WORSE'],  '-')
 
+def print_score(score):
+    if isinstance(score, (int,float)):
+        return '%.02f' % score
+    if isinstance(score, tuple):
+        return '(%s)' % ', '.join(print_score(x) for x in score)
+    return str(score)
 
 class CandidateTracker(object):
     def __init__(self, base_style=None):
@@ -118,12 +124,12 @@ class CandidateTracker(object):
 
     def __repr__(self):
         if self.searching:
-            return "CandidateTracker(best_score=%r, best_style=%r, searching_label=%r, searching_score=%r, searching_style=%r)" % (
-                self.accepted_score, self.accepted_style,
-                self.candidate_label, self.candidate_score, self.candidate_style
+            return "CandidateTracker(best_score=%s, best_style=%r, searching_label=%r, searching_score=%s, searching_style=%r)" % (
+                print_score(self.accepted_score), self.accepted_style,
+                self.candidate_label, print_score(self.candidate_score), self.candidate_style
             )
         else:
-            return "CandidateTracker(best_score=%r, best_style=%r)" % (self.accepted_score, self.accepted_style)
+            return "CandidateTracker(best_score=%s, best_style=%r)" % (print_score(self.accepted_score), self.accepted_style)
 
 class StyleCanonicalizer(object):
     def __init__(self):
@@ -193,9 +199,9 @@ def search(tracker, project, options, strictly_better=True, cache=ScoreCache()):
             better_label = RANK_BETTER()
 
         if verbosity > VERBOSITY_MEDIUM:
-            print('  %s %r: %s %r' % (better_label, score, ansi.wrap(ANSI['STYLE_VALUE'], option), style))
+            print('  %s %s: %s %r' % (better_label, print_score(score), ansi.wrap(ANSI['STYLE_VALUE'], option), style))
         else:
-            print('  %s %r: %s' % (better_label, score, ansi.wrap(ANSI['STYLE_VALUE'], option)))
+            print('  %s %s: %s' % (better_label, print_score(score), ansi.wrap(ANSI['STYLE_VALUE'], option)))
 
     return tracker.finish(strictly_better=strictly_better)
 
@@ -227,7 +233,7 @@ basic_args.add_argument('--include-extensions', type=str, metavar='EXTENSIONS', 
 basic_args.add_argument('-I', '--include-path', type=str, metavar='PATH', action='append', help='path/file to search for files; can be specified multiple times')
 basic_args.add_argument('-E', '--exclude-path', type=str, metavar='PATH', action='append', help='path/file to exclude from the analysis; can be specified multiple times. Exclusions apply after include filters.')
 basic_args.add_argument('--randomly-limit', type=int, metavar='NUM', help='randomly select NUM files; files will be selected according to relative frequence by extension (min 1)')
-basic_args.add_argument('--git-diff-score', choices=sorted(git.diff_options.keys()), default=git.diff_default, help='the scoring algorithm to use')
+basic_args.add_argument('--diff-score', choices=sorted(git.diff_options.keys()), default=git.diff_default, help='the scoring algorithm to use')
 
 basic_args = parser.add_argument_group('Style Options')
 basic_args.add_argument('--style-base', choices=sorted(styles.BASE_STYLE_TYPES), help='force a specific base style')
@@ -381,9 +387,9 @@ if verbosity:
 
 
 # Pick the diff strategy.
-differ = git.diff_options[args.git_diff_score]()
+differ = git.diff_options[args.diff_score]()
 if verbosity:
-    print(ansi.wrap(ANSI['V'], "[V] Using diff strategy %r." % args.git_diff_score))
+    print(ansi.wrap(ANSI['V'], "[V] Using diff strategy %r." % args.diff_score))
 
 
 # Check for starting styles
@@ -470,6 +476,10 @@ for index, key in enumerate(styles.STYLE_OPTIONS.keys()):
         continue
 
     changed = search(tracker, project, options=styles.STYLE_OPTIONS[key].options)
+    if changed:
+        print(" :: UPDATED! Added a new option that improved the score.")
+    else:
+        print(ansi.wrap(ANSI['SKIP'], " :: Skipped. No option improved the fit."))
 
 
 print("")
