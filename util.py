@@ -48,16 +48,6 @@ def get_files_with_extensions(path, extensions):
     files = sorted(f[2:] for f in run(cmd, cwd=path).split('\0') if f)
     return files
 
-
-def flatten(values):
-    if isinstance(values, (list, types.GeneratorType, set)):
-        ret = []
-        for value in values:
-            ret.extend(flatten(value))
-        return ret
-    else:
-        return [values]
-
 # A class that makes a sentinel type with a good repr.
 # This is really useful with defaults in argparse, where you want the value to have something
 # nice to show to user, but still be a sentinel we can test against.

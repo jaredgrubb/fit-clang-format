@@ -7,7 +7,7 @@ class StyleOption(object):
 		self.options = options
 
 class Style(object):
-    def __init__(self, base=None, style=None):
+    def __init__(self, base=None, style=None, hidden_base_style=None):
         if style is None:
             if base is not None:
                 style = {'BasedOnStyle': base}
@@ -18,12 +18,21 @@ class Style(object):
 
         self.base = base
         self.style_dict = style
+        self.hidden_base_style = hidden_base_style
 
     def __repr__(self):
         return 'Style(base=%r, style=%r)' % (self.base, self.style_dict)
 
     def dump(self, output_stream):
         yaml.safe_dump(self.style_dict, stream=output_stream, default_flow_style=False)
+        if self.hidden_base_style:
+            hidden_keys = [key for key in self.hidden_base_style.style_dict if key not in self.style_dict]
+            if hidden_keys:
+                hidden_yaml = yaml.safe_dump({k:self.hidden_base_style.style_dict[k] for k in hidden_keys}, default_flow_style=False)
+                hidden_yaml = hidden_yaml.splitlines()
+                output_stream.write('## Other available options and their default values:\n' % line)
+                for line in hidden_yaml:
+                    output_stream.write('# %s\n' % line)
 
     def style_with_overrides(self, overrides):
         # Find the base config to override.
@@ -32,6 +41,9 @@ class Style(object):
         new_style_dict.update(overrides)
 
         return Style(base=new_base, style=new_style_dict)
+
+    def style_with_defaults_hidden(self, base_style):
+        return Style(base=self.base, style=copy.deepcopy(self.style_dict), hidden_base_style=base_style)
 
 
 # The top-level styles that clang-format supports.

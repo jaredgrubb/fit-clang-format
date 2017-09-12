@@ -251,7 +251,6 @@ output_args_ansi_group.add_argument('--ansi',    action='store_true', help='forc
 
 args = parser.parse_args()
 
-print(args)
 
 # Set up things that affect our logging.
 verbosity = args.verbose
@@ -495,9 +494,35 @@ print("============")
 print("")
 
 print("Applying style to the project..")
-project.apply_style(style)
 
+
+full_style_dict = yaml.load(
+    util.run([context['clang-format'], '-dump-config', '-style', yaml.dump({'BasedOnStyle':base})])
+)
+full_style = styles.Style(base=style.base, style=full_style_dict)
+project.apply_style(style.style_with_defaults_hidden(full_style))
+
+print("""
+The .clang-format file is now in your project and the style has been applied but not committed.
+
+Next steps:
+ - review the diff and see if you like the changes.
+    - look for outlier files (eg, code you never want formatted, like external OSS projects)
+      Outlier files could have different code style that is influencing the search.
+    - review the style and see if there are any changes you prefer
+ - if you don't like the result (eg, maybe your code has many different styles), consider alternate options:
+    - pick a subdirectory or set of files that does have the style you like and re-run this tool
+      using the '-I' option.
+    - start from a known style base (--style-base)
+    - start from a manually-select style (--force-style)
+ - to re-run, reset your repo and start over.
+ - if you're happy with the style:
+   - add it to your repo and check it in.
+   - read the clang-format docs which has lots of ways to integrate it into your workflow
+      (vim intergration, git integration, BBEdit, etc)
+      URL: https://clang.llvm.org/docs/ClangFormat.html
+""")
 print("")
-print("The .clang-format file is now in your project and the style has been applied but not committed.")
+print("")
 
 sys.exit(RC_SUCCESS)
