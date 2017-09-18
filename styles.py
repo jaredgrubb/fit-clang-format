@@ -30,7 +30,7 @@ class Style(object):
             if hidden_keys:
                 hidden_yaml = yaml.safe_dump({k:self.hidden_base_style.style_dict[k] for k in hidden_keys}, default_flow_style=False)
                 hidden_yaml = hidden_yaml.splitlines()
-                output_stream.write('## Other available options and their default values:\n' % line)
+                output_stream.write('## Other available options and their default values:\n')
                 for line in hidden_yaml:
                     output_stream.write('# %s\n' % line)
 
