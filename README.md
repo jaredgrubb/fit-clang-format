@@ -12,24 +12,26 @@ However, creating that style file is tedious and annoying. This Python tool iter
 
 # Usage
 
-$ cd YourRepo
-$ fit-clang-format
-   [ ... ]
-$ git diff   # Like it? Or reset and re-run?
+
+    $ cd YourRepo
+    $ fit-clang-format
+       [ ... ]
+    $ git diff   # Like it? Or reset and re-run?
+
+You may need to specify the path to the clang-format tool if it is not in your path:
+
+    $ fit-clang-format --clang-format-path /path/to/clang-format
 
 The tool automatically grabs every source file (by extension) and performs reformatting and calculates the size of the delta.
 It tries to find the combination that is the closest fit.
 
-After the tool completes, your repo will have a ".clang-format" file in the root of your repository and the files will
+After the tool completes, your repo will have a `.clang-format` file in the root of your repository and the files will
 have that format applied so you can run git-diff to see how it looks. 
 
-You may need to specify the path to the clang-format tool if it is not in your path:
-$ fit-clang-format --clang-format-path /path/to/clang-format
-
 You may also want to limit the files that the tool tests:
-* if your repository is very large, maybe select some representative files (via --include-path)
-* if your repository has sources you don't want to touch (eg, in-tree copies of external sources) or that could skew the results (test suites), then you can blacklist files (via --exclude-path)
-* if your selections is still too large, you can have the tool randomly select files of each extension type (via --randomly-limit)
+* if your repository is very large, maybe select some representative files (via `--include-path`)
+* if your repository has sources you don't want to touch (eg, in-tree copies of external sources) or that could skew the results (test suites), then you can blacklist files (via `--exclude-path`)
+* if your selections is still too large, you can have the tool randomly select files of each extension type (via `--randomly-limit`)
 
 # License
 This software is dual-licensed under MIT and LLVM licenses.
