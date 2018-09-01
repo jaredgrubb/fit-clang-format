@@ -9,7 +9,21 @@ import math
 import os
 import random
 import sys
-import yaml
+
+# Third-party stuff.
+try:
+    import yaml
+except ImportError:
+    print("Missing library 'pyyaml'.")
+    print()
+    print('clang-format uses yaml as its configuration file formats. You should install the pyyaml module.')
+    print('You can visit https://pyyaml.org to learn more about this module.')
+    print()
+    print('This command will install it locally just for your user:')
+    print('    $ pip install --user pyyaml')
+    print()
+    print('After installing that, this tool should work.')
+    sys.exit(-1)
 
 # Project-local stuff.
 import ansi
