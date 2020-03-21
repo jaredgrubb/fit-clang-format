@@ -12,7 +12,6 @@ However, creating that style file is tedious and annoying. This Python tool iter
 
 # Usage
 
-
     $ cd YourRepo
     $ fit-clang-format
        [ ... ]
@@ -76,4 +75,4 @@ The algorithms are:
    * 'words-log': (default) same as words, but use logarithm to reduce impact of larger files
 
 # License
-This software is dual-licensed under MIT and LLVM licenses.
+This software is dual-licensed under MIT and the legacy LLVM (UIUC/NCSA) licenses.

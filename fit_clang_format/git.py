@@ -1,7 +1,9 @@
+from __future__ import absolute_import
 import math
 import os
 import subprocess
-import util
+from . import util
+import six
 
 linear_scalar = lambda x: int(x)
 log_scalar = lambda x: math.log(1+int(x))
@@ -90,11 +92,11 @@ class GitRepoDifferWords(GitRepoDifferBase):
                 cur_file = line
                 delta[cur_file] = {'+': 0, '-': 0}
 
-        head = list(delta.itervalues())[0]
+        head = list(six.itervalues(delta))[0]
 
         files = len(delta)
-        maxid = sum(max(self.scalar(s['+']),self.scalar(s['-'])) for s in delta.itervalues())
-        delta = sum(abs(self.scalar(s['+'])-self.scalar(s['-'])) for s in delta.itervalues())
+        maxid = sum(max(self.scalar(s['+']),self.scalar(s['-'])) for s in six.itervalues(delta))
+        delta = sum(abs(self.scalar(s['+'])-self.scalar(s['-'])) for s in six.itervalues(delta))
 
         return (maxid, files, delta)
 
@@ -122,7 +124,7 @@ class GitRepo(object):
 
     def check(self, subcommand):
         """Run a git command and verify that the exit code is 0"""
-        if isinstance(subcommand, basestring):
+        if isinstance(subcommand, six.string_types):
             subcommand = [subcommand]
         try:
             util.run(['git'] + subcommand, check=True)
@@ -132,7 +134,7 @@ class GitRepo(object):
 
     def run(self, subcommand):
         """Run a git command and return stdio. Throws if exit code is nonzero."""
-        if isinstance(subcommand, basestring):
+        if isinstance(subcommand, six.string_types):
             subcommand = [subcommand]
         return util.run(['git'] + subcommand)
 

@@ -1,5 +1,7 @@
+from __future__ import absolute_import
 import subprocess
 import types
+import six
 
 # Run a command and return the stdout by default
 # Set include_stderr if you want the stderr too (will return the pair).
@@ -12,6 +14,7 @@ def run(command, include_stdout=True, include_stderr=False, check=True, **kwargs
 
     p = subprocess.Popen(command, **kwargs)
     stdout, stderr = p.communicate()
+    stdout, stderr = six.text_type(stdout), six.text_type(stderr)
 
     if check and p.returncode:
         raise ValueError("git command returned code %s" % p.returncode)
@@ -32,6 +35,7 @@ def check(command, **kwargs):
     except ValueError:
         return False
 
+# Why not glob.glob('**/*.%s')? You tell me.
 def get_files_with_extensions(path, extensions):
     cmd = ['find', '.',
         '-type', 'f',
@@ -64,7 +68,7 @@ class BoxedThing(object):
         self.thing = thing
     def __hash__(self):
         if isinstance(self.thing, dict):
-            return hash(frozenset(((x,boxed(y)) for x,y in self.thing.iteritems())))
+            return hash(frozenset(((x,boxed(y)) for x,y in six.iteritems(self.thing))))
         if isinstance(self.thing, list):
             return hash(tuple((boxed(x) for x in self.thing)))
         return hash(self.thing)
@@ -95,11 +99,11 @@ def unboxed(thing):
 class lazy_property(object):
     def __init__(self,fget):
         self.fget = fget
-        self.func_name = fget.__name__
+        self.__name__ = fget.__name__
 
     def __get__(self,obj,cls):
         if obj is None:
             return None
         value = self.fget(obj)
-        setattr(obj,self.func_name,value)
+        setattr(obj,self.__name__,value)
         return value

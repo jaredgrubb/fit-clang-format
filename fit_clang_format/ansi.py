@@ -1,3 +1,4 @@
+import six
 COLORS = {
     'reset': "\x1b[0m",
     'reverse': "\x1b[7m",
@@ -33,7 +34,7 @@ COLORS = {
 
 def wrap(color, txt, reset=COLORS['reset']):
     # if the color is empty, then no need to reset either
-    if not isinstance(txt, basestring):
+    if not isinstance(txt, six.string_types):
         txt = str(txt)
     if color:
         return color+txt+reset
