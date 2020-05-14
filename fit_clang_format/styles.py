@@ -1,5 +1,7 @@
+from __future__ import absolute_import
 import copy
 import yaml
+import six
 
 class StyleOption(object):
 	def __init__(self, name, options):
@@ -128,7 +130,7 @@ STYLE_OPTIONS.update({
     key: StyleOption(key, [
     	{key:option} for option in options
     ])
-    for key,options in {
+    for key,options in six.iteritems({
         'AccessModifierOffset': [-4, -2, -1, 0, 1, 2, 4],
         'AlignAfterOpenBracket': ['Align', 'DontAlign', 'AlwaysBreak'],
         'AllowShortFunctionsOnASingleLine': ['All', 'Inline', 'None', 'Empty'],
@@ -157,7 +159,7 @@ STYLE_OPTIONS.update({
         'SpacesBeforeTrailingComments': [1, 2],
         'Standard': ['Auto','Cpp03','Cpp11'],
         'Standard': ['Cpp11', 'Cpp03', 'Auto'],
-    }.iteritems()
+    })
 })
 
 # The UseTab & TabWidth are coupled.

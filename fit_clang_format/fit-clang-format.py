@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function
+from __future__ import absolute_import
 
 # System stuff.
 import argparse
@@ -9,27 +10,14 @@ import math
 import os
 import random
 import sys
-
-# Third-party stuff.
-try:
-    import yaml
-except ImportError:
-    print("Missing library 'pyyaml'.")
-    print()
-    print('clang-format uses yaml as its configuration file formats. You should install the pyyaml module.')
-    print('You can visit https://pyyaml.org to learn more about this module.')
-    print()
-    print('This command will install it locally just for your user:')
-    print('    $ pip install --user pyyaml')
-    print()
-    print('After installing that, this tool should work.')
-    sys.exit(-1)
+import yaml
+import six
 
 # Project-local stuff.
-import ansi
-import git
-import styles
-import util
+from . import ansi
+from . import git
+from . import styles
+from . import util
 
 RC_FAIL = -1
 RC_SUCCESS = 0
@@ -164,7 +152,7 @@ class StyleCanonicalizer(object):
 
         # Get the key-value pairs that are different.
         ret = {'BasedOnStyle': style.base}
-        for key in base_style.style_dict.keys():
+        for key in list(base_style.style_dict.keys()):
             value = style.style_dict.get(key)
             if value==base_style.style_dict.get(key):
                 continue
@@ -373,16 +361,16 @@ else:
         files_by_extension.setdefault(ext, []).append(f)
 
     context['files_to_format'] = []
-    for files in files_by_extension.itervalues():
+    for files in six.itervalues(files_by_extension):
         random.shuffle(files)
 
         # Always keep one of each file for sure.
         context['files_to_format'].append(files.pop())
 
     # Then take a fraction of each list, weighted by relative frequency
-    full_count = sum(len(files) for files in files_by_extension.itervalues())
+    full_count = sum(len(files) for files in six.itervalues(files_by_extension))
     keep_fraction = float(args.randomly_limit - len(files_by_extension)) / full_count
-    for ext, files in files_by_extension.iteritems():
+    for ext, files in six.iteritems(files_by_extension):
         i = int(round(keep_fraction * len(files)))
         if verbosity:
             # XX: the plus-one here is to account for the one file we selected in the first for loop above.
